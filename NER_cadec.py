@@ -318,7 +318,7 @@ def visualize(dataset_dir, model_path):
     plot_heatmap(entity_matrix, 'Ground Truth Entity Matrix', words, cmap='Blues', vmin=0, vmax=1)
     plot_heatmap(pred_matrix_binary, 'Predicted Entity Matrix', words, cmap='Reds', vmin=vmin, vmax=vmax)
 
-def compute_metrics(pos_weight_values, num_runs_per_weight, metrics_file, best_model_path):
+def compute_metrics(pos_weight_values, num_runs, metrics_file, best_model_path):
     best_f1 = 0
     best_pos_weight = None
     with open(metrics_file, 'a') as f:
@@ -327,15 +327,15 @@ def compute_metrics(pos_weight_values, num_runs_per_weight, metrics_file, best_m
     for pos_weight in pos_weight_values:
         total_precision, total_recall, total_f1 = (0, 0, 0)
         print(f'\nTesting pos_weight = {pos_weight}...')
-        for _ in range(num_runs_per_weight):
+        for _ in range(num_runs):
             model = training_loop(pos_weight=pos_weight, epochs=3, verbose=False)
             precision, recall, f1 = evaluation_loop(model)
             total_precision += precision
             total_recall += recall
             total_f1 += f1
-        avg_precision = total_precision / num_runs_per_weight
-        avg_recall = total_recall / num_runs_per_weight
-        avg_f1 = total_f1 / num_runs_per_weight
+        avg_precision = total_precision / num_runs
+        avg_recall = total_recall / num_runs
+        avg_f1 = total_f1 / num_runs
         print(f'pos_weight = {pos_weight} -> Precision: {avg_precision:.4f}, Recall: {avg_recall:.4f}, F1: {avg_f1:.4f}')
         with open(metrics_file, 'a') as f:
             f.write(f'\n#### pos_weight = {pos_weight}\n')
@@ -345,8 +345,7 @@ def compute_metrics(pos_weight_values, num_runs_per_weight, metrics_file, best_m
         if avg_f1 > best_f1:
             best_f1 = avg_f1
             best_pos_weight = pos_weight
-            model = EntityMatrixPredictor(bert_model_name='bert-base-cased')
-            model.load_state_dict(torch.load(best_model_path))
+            torch.save(model.state_dict(), best_model_path)
     with open(metrics_file, 'a') as f:
         f.write('\n### Best Hyperparameter:\n')
         f.write(f'- **Best pos_weight:** {best_pos_weight}\n')
