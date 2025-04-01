@@ -161,7 +161,7 @@ def extract_spans_from_matrix(matrix):
         spans.append([start, max_words - 1])
     return spans
 
-def evaluation_loop_sharp_path(model_path, dataset_dir):
+def evaluation_loop_sharp_path(dataset_dir, model_path, ):
     model = EntityMatrixPredictor(bert_model_name='bert-base-cased')
     model.load_state_dict(torch.load(model_path))
     return evaluation_loop_sharp(dataset_dir, model)
@@ -215,10 +215,10 @@ def evaluation_loop_sharp(dataset_dir, model):
     f1 = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0.0
     return (precision, recall, f1)
 
-def evaluation_loop_path(model_path, dataset_dir):
+def evaluation_loop_path(dataset_dir, model_path,):
     model = EntityMatrixPredictor(bert_model_name='bert-base-cased')
     model.load_state_dict(torch.load(model_path))
-    return evaluation_loop(model, dataset_dir)
+    return evaluation_loop(dataset_dir, model)
 
 def evaluation_loop(dataset_dir, model):
     """
@@ -318,7 +318,7 @@ def visualize(dataset_dir, model_path):
     plot_heatmap(entity_matrix, 'Ground Truth Entity Matrix', words, cmap='Blues', vmin=0, vmax=1)
     plot_heatmap(pred_matrix_binary, 'Predicted Entity Matrix', words, cmap='Reds', vmin=vmin, vmax=vmax)
 
-def compute_metrics(pos_weight_values, num_runs, metrics_file, best_model_path):
+def compute_metrics(dataset_dir, pos_weight_values, num_runs, metrics_file, best_model_path):
     best_f1 = 0
     best_pos_weight = None
     with open(metrics_file, 'a') as f:
@@ -328,8 +328,8 @@ def compute_metrics(pos_weight_values, num_runs, metrics_file, best_model_path):
         total_precision, total_recall, total_f1 = (0, 0, 0)
         print(f'\nTesting pos_weight = {pos_weight}...')
         for _ in range(num_runs):
-            model = training_loop(pos_weight=pos_weight, epochs=3, verbose=False)
-            precision, recall, f1 = evaluation_loop(model)
+            model = training_loop(dataset_dir, pos_weight=pos_weight, epochs=3, verbose=False)
+            precision, recall, f1 = evaluation_loop(dataset_dir, model)
             total_precision += precision
             total_recall += recall
             total_f1 += f1
