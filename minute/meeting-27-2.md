@@ -1,0 +1,6 @@
+- dividere i modelli in single and next word
+- loss = bce + cl (dove il più va indagato) (cl = cosine similarity)
+    - si può pensare di proiettare su Q prima
+    - fai prima con il vero +, per capire bene se ha senso
+- tornare alle parole (varianza non è un problema)
+- che l'attenzione riduca molto la varianza non è problema3

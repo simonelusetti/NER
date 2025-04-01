@@ -1,0 +1,1 @@
+{"words": ["loss", "of", "muscle", "weakness", "liver", "disfunction", "exhaustion"], "entity_matrix": [0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1], "entities": ["weakness", "liver disfunction", "exhaustion", "loss of muscle"]}

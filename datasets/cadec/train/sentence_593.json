@@ -1,0 +1,1 @@
+{"words": ["muscule", "pain", "and", "numb", "leg", "chest", "pain"], "entity_matrix": [0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0], "entities": ["numb leg", "chest pain", "muscule pain"]}

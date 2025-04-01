@@ -1,0 +1,1 @@
+{"words": ["severe", "nausea", "dizziness", "terrible", "stomach", "pain"], "entity_matrix": [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0], "entities": ["severe nausea", "terrible stomach pain", "dizziness", "terrible stomach pain"]}

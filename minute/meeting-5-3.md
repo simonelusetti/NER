@@ -1,0 +1,23 @@
+- possiamo usare i metadati di pwc per iniziare a fare un grafo preliminare
+    - accordarci su un canale per comunicare questi dati
+    - Neo4J come database per questo grafo
+        - possiede tutte le funzionalità di SQL: select, order by, group by oltre a quelle solo di grafo come la navigazione del grafo
+        - un utente potrebbe selezionare un elemento e far apparire il sottografo relativo e navigarlo, analizzando i nodi relazionati
+        - i nodi possono avere tante etichette, anche in evoluzione: un nodo "persona" può anche dopo diventare "manager"
+    - la costruzione del grafo richede molto tempo
+        - sarebbe meglio farlo appena si hanno i dati invece che a query-time (store first query later)
+        - quando gli elementi sono indicizzati si crea un file "log" da cui partire per fare il grafo
+    - CHALLENGE: non si ha l'entità "persona"
+        - i contratti hanno spesso i nomi e cognomi scritti in modo abbastanza riconoscibile
+        - l'indirizzo mail si può usare come surrogato
+            - si può creare il nodo persona con solo l'indirizzo mail
+                - questi però, in futuro, dovranno essere scollegati in modo che una persona possa avere più mail e viceversa
+            - si può fare approximate string matching per risolvere gli alias
+    - che graph database manager usare?
+        - Neo4J come opzione
+        - Apache AGE potrebbe essere utile per la comunicazione grafo<->database
+        - networkx, di python, non scala bene
+        - JanusGraph si aggancia direttamente a Solr
+        - considerare il livello di documentazione di ogni manager
+- cose da fare:
+    - definire uno schema per questo grafo

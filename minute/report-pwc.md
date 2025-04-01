@@ -1,0 +1,18 @@
+- caso
+    - caso sul quale si vogliono trovare prove di crimini
+        - chi ha accesso a che informazioni, prove che qualcuno abbia avuto qualche informazione
+    - generalmente di natura finanziaria e di responsabilità
+        - violazioni di copyright
+        - esempio: caso Eron
+    - evidenze: informazioni sul caso
+        - nel 90% sono email, da chi a chi, timestamp 
+        - tipicamente un hard disk, archivio di mail o zip
+        - estraggono i metadati (timestamp, autore, ecc ecc), usati come sottoevidenze:
+            - immagini, allegati, sono tutte sottoevidenze
+        - sono nodi per ora scollegati
+            - sono collegati solo da evidenza, sotto-evidenza
+    - ricerche sul dato:
+        - ricerche sulle keyword, sui metadati
+
+- todo:
+    - guardare il grafo di apache e come integrarlo con solar
