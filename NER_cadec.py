@@ -1,14 +1,9 @@
 import os
 import json
 import numpy as np
-from datasets import load_from_disk, DatasetDict
-from torch.utils.data import Dataset
-import torch
-from torch.utils.data import DataLoader, Dataset
+from datasets import load_from_disk
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
-import torch.nn as nn
-from transformers import BertModel
 from torch.utils.data import Subset
 from torch.utils.data import DataLoader, Subset
 from sklearn.metrics import precision_score, recall_score, f1_score
@@ -16,6 +11,10 @@ import time
 import matplotlib.pyplot as plt
 import seaborn as sns
 import random
+from EntityMatrixDataset import EntityMatrixDataset, collate_fn
+from EntityMatrixPredictor import EntityMatrixPredictor
+import torch
+import torch.nn as nn
 
 def compute_pos_weights(loader, device='cpu'):
     upper_ones = 0
@@ -97,100 +96,6 @@ def save_matrices(output_dir, dataset_split, split_name):
         with open(file_path, 'w') as f:
             json.dump(entry, f)
 
-class EntityMatrixDataset(Dataset):
-
-    def __init__(self, data_dir, tokenizer, max_seq_length=128):
-        """
-        Initialize the dataset by loading all JSON files from the directory.
-        
-        Args:
-            data_dir: Path to the directory containing JSON files.
-            tokenizer: Tokenizer to encode tokens.
-            max_seq_length: Maximum sequence length for padding/truncation.
-        """
-        self.data = []
-        self.tokenizer = tokenizer
-        self.max_seq_length = max_seq_length
-        for file_name in os.listdir(data_dir):
-            if file_name.endswith('.json'):
-                with open(os.path.join(data_dir, file_name), 'r') as f:
-                    entry = json.load(f)
-                    entry['entity_matrix'] = entry['entity_matrix']
-                    self.data.append(entry)
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        """
-        Get the words and single-word entity vector for the given index.
-        
-        Returns:
-            - words: List of words in the sentence.
-            - single_word_labels: Tensor with 1s for single-word entities, 0s otherwise.
-        """
-        entry = self.data[idx]
-        words = entry['words']
-        entities = entry['entities']
-        entity_matrix = torch.tensor(entry['entity_matrix'], dtype=torch.float32)
-        return (words, entity_matrix, entities)
-
-def collate_fn(batch, tokenizer, max_seq_length=128):
-    """
-    Collate function to pad words and entity matrices within a batch.
-
-    Args:
-        batch: List of tuples (words, entity_matrix).
-        tokenizer: Tokenizer to encode and pad words.
-        max_seq_length: Maximum sequence length for padding.
-
-    Returns:
-        - Encoded tokenized inputs (input_ids, attention_mask, word_ids).
-        - Padded entity matrices tensor.
-    """
-    words_batch, matrices_batch, entities = zip(*batch)
-    encoded = tokenizer(list(words_batch), is_split_into_words=True, return_tensors='pt', padding=True, truncation=True, max_length=max_seq_length)
-    batch_size = len(batch)
-    padded_seq_len = max_seq_length
-    padded_matrices = torch.zeros((batch_size, padded_seq_len, padded_seq_len), dtype=torch.float32)
-    for i, (matrix, words) in enumerate(zip(matrices_batch, words_batch)):
-        size = len(words)
-        matrix = matrix.reshape((size, size))
-        seq_len = min(matrix.shape[0], padded_seq_len)
-        padded_matrices[i, :seq_len, :seq_len] = matrix[:seq_len, :seq_len]
-    return (encoded, padded_matrices, entities)
-
-class EntityMatrixPredictor(nn.Module):
-
-    def __init__(self, bert_model_name='bert-base-cased', hidden_dim=768, num_heads=4, dropout=0.1):
-        super(EntityMatrixPredictor, self).__init__()
-        self.hidden_dim = hidden_dim
-        self.bert = BertModel.from_pretrained(bert_model_name)
-        self.mlp_forward = nn.Sequential(nn.Linear(hidden_dim * 2, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, hidden_dim), nn.ReLU())
-        self.v_forward = nn.Parameter(torch.randn(hidden_dim))
-        self.mlp_backward = nn.Sequential(nn.Linear(hidden_dim * 2, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, hidden_dim), nn.ReLU())
-        self.v_backward = nn.Parameter(torch.randn(hidden_dim))
-
-    def forward(self, input_ids, attention_mask, word_ids):
-        batch_size, _ = input_ids.shape
-        bert_output = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        token_embeddings = bert_output.last_hidden_state
-        max_words = max([max([wid for wid in word_id if wid is not None], default=-1) + 1 for word_id in word_ids])
-        word_embeddings = torch.zeros((batch_size, max_words, token_embeddings.shape[-1]), device=token_embeddings.device)
-        for i in range(batch_size):
-            word_counts = torch.zeros((max_words, 1), device=token_embeddings.device)
-            for token_idx, word_idx in enumerate(word_ids[i]):
-                if word_idx is not None:
-                    word_embeddings[i, word_idx] += token_embeddings[i, token_idx]
-                    word_counts[word_idx] += 1
-            word_embeddings[i] /= word_counts.clamp(min=1)
-        i_emb = word_embeddings.unsqueeze(2).expand(-1, -1, max_words, -1)
-        j_emb = word_embeddings.unsqueeze(1).expand(-1, max_words, -1, -1)
-        pair_matrix = torch.cat((i_emb, j_emb), dim=-1)
-        logits_forward = torch.triu(torch.matmul(self.mlp_forward(pair_matrix), self.v_forward))
-        logits_backward = torch.tril(torch.matmul(self.mlp_backward(pair_matrix), self.v_backward), diagonal=-1)
-        return logits_forward + logits_backward
-
 def get_train_loader(dataset_dir, subset_size=None):
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased', use_fast=True)
     train_dir = f'{dataset_dir}/train'
@@ -200,14 +105,14 @@ def get_train_loader(dataset_dir, subset_size=None):
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, collate_fn=lambda batch: collate_fn(batch, tokenizer))
     return train_loader
 
-def training_loop(model=EntityMatrixPredictor(), device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), epochs=3, pos_weight=15, verbose=False, subset_size=None):
+def training_loop(dataset_dir, model=EntityMatrixPredictor(), device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), epochs=3, pos_weight=15, verbose=False, subset_size=None):
     model.to(device)
     loss_bce = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight], device=device))
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-05)
     for epoch in range(epochs):
         model.train()
         total_loss = 0
-        train_loader = get_train_loader(subset_size=subset_size)
+        train_loader = get_train_loader(dataset_dir, subset_size=subset_size)
         for batch in train_loader:
             tokens = batch[0]
             target_matrix = batch[1].to(device)
