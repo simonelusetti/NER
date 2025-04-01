@@ -220,7 +220,7 @@ def evaluation_loop_path(model_path, dataset_dir):
     model.load_state_dict(torch.load(model_path))
     return evaluation_loop(model, dataset_dir)
 
-def evaluation_loop(model, dataset_dir):
+def evaluation_loop(dataset_dir, model):
     """
     Evaluates the model by directly comparing the predicted and target matrices.
 
