@@ -26,7 +26,7 @@ def training_loop_rl(dataset_dir, model=EntityMatrixPredictor(), device=torch.de
             probs = torch.sigmoid(predicted_matrix)
             for i in range(probs.size(0)): 
                 sampled_matrix = torch.bernoulli(probs[i]).detach().cpu()
-                reward = loop_penalty(sampled_matrix)
+                reward = loop_reward(sampled_matrix)
                 if verbose:
                     print(f"Reward: {reward}")
                 rewards.append(reward)
@@ -66,7 +66,7 @@ def reachability(adj_matrix):
 def nodes_with_arcs(adj_matrix):
     return (adj_matrix.sum(dim=0) > 0) | (adj_matrix.sum(dim=1) > 0)
 
-def loop_penalty(pred_matrix):
+def loop_reward(pred_matrix):
     """
     Compute loop reward as the fraction of nodes involved in valid loops.
 
@@ -84,7 +84,7 @@ def loop_penalty(pred_matrix):
     global_loop_flags = torch.zeros(n, dtype=torch.bool, device=pred_matrix.device)
 
     if lower_positions.numel() == 0:
-        return 1 - pred_matrix.sum() / n
+        return pred_matrix.sum() / n
 
     for i, j in lower_positions:
         submatrix = upper_triangle[j:i+1, j:i+1].clone()
@@ -94,10 +94,10 @@ def loop_penalty(pred_matrix):
         global_loop_flags[global_indices] |= local_loop_flags
 
     nodes_with_edges = nodes_with_arcs(pred_binary)
-    valid_nodes = ~(global_loop_flags ^ (~nodes_with_edges))  # XNOR
-    num_valid = valid_nodes.sum().float()
+    valid_nodes = (global_loop_flags ^ (~nodes_with_edges))  # XNOR
+    num_valid = valid_nodes.sum()
 
-    return (num_valid / n - 0.5)
+    return num_valid / n + global_loop_flags.sum() / n
 
 def extract_spans_from_matrix(matrix):
     """
