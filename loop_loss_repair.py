@@ -1,6 +1,72 @@
 import torch
 import torch.nn as nn
 
+from NER_cadec import EntityMatrixPredictor
+from NER_cadec import get_train_loader
+
+def training_loop_repair(
+    dataset_dir,
+    model=EntityMatrixPredictor(),
+    device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+    epochs=3,
+    pos_weight=15,
+    verbose=False,
+    subset_size=None,
+    repair_loss_weight=1.0
+):
+    model.to(device)
+    loss_bce = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight], device=device))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
+
+    for epoch in range(epochs):
+        model.train()
+        total_loss = 0
+        train_loader = get_train_loader(dataset_dir, subset_size=subset_size)
+
+        for batch in train_loader:
+            tokens = batch[0]
+            target_matrix = batch[1].to(device)
+            input_ids = tokens['input_ids'].to(device)
+            attention_mask = tokens['attention_mask'].to(device)
+            word_ids = [tokens.word_ids(batch_index=i) for i in range(len(input_ids))]
+
+            optimizer.zero_grad()
+
+            predicted_matrix = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                word_ids=word_ids
+            )
+
+            _, max_words, _ = predicted_matrix.shape
+            target_matrix = target_matrix[:, :max_words, :max_words]
+
+            # Supervised loss
+            supervised_loss = loss_bce(predicted_matrix, target_matrix)
+
+            # Repair-based structural loss
+            repair_loss = torch.stack([
+                compute_repair_loss(predicted_matrix[i])
+                for i in range(predicted_matrix.size(0))
+            ]).mean()
+
+            # Combined loss
+            loss = supervised_loss + repair_loss_weight * repair_loss
+            loss.backward()
+            optimizer.step()
+
+            if verbose:
+                print(f'Batch loss {loss.item()} | BCE: {supervised_loss.item()} | Repair: {repair_loss.item()}')
+
+            total_loss += loss.item()
+
+        epoch_loss = total_loss / len(train_loader)
+        if verbose:
+            print(f'Epoch {epoch + 1}, Avg Loss: {epoch_loss:.4f}')
+
+    return model
+
+
 def find_opening_paths(matrix, threshold=0.5):
     """
     Recursively find all maximal opening paths (as sequences of arcs) in the upper triangle.
@@ -210,3 +276,4 @@ def compute_repair_loss(logits: torch.Tensor, threshold: float = 0.5) -> torch.T
     # BCE loss between original logits and repaired logits (used as pseudo-labels)
     loss_fn = nn.BCEWithLogitsLoss()
     return loss_fn(logits, repaired_logits)
+
