@@ -67,7 +67,7 @@ def training_loop_repair(
     return model
 
 
-def find_opening_paths(matrix, threshold=0.5, max_distance=5):
+def find_opening_paths(matrix, threshold=0.5, max_distance=10):
     """
     Recursively find all maximal opening paths (as sequences of arcs) in the upper triangle.
 
@@ -137,7 +137,7 @@ def opening_paths_partitions(path):
     return repairs
 
 
-def repair_matrix_lower(logits, threshold=0.5, max_distance=5):
+def repair_matrix_lower(logits, threshold=0.5, max_distance=10):
     """
     Repairs the lower triangle of the matrix by inserting the least costly (closest-to-1)
     backward arcs that close existing forward paths.
@@ -163,7 +163,7 @@ def repair_matrix_lower(logits, threshold=0.5, max_distance=5):
     return torch.tril(logits, diagonal=-1) + upper
 
 
-def find_closing_paths(logits, threshold=0.5, max_distance=5):
+def find_closing_paths(logits, threshold=0.5, max_distance=10):
     """
     Find all individual backward arcs (i.e., closing arcs) in the lower triangle.
 
@@ -206,7 +206,7 @@ def closing_path_partitions(path):
     return result
 
 
-def repair_matrix_upper(logits, threshold=0.5):
+def repair_matrix_upper(logits, threshold=0.5, max_distance=10):
     """
     Repairs the upper triangle of the matrix by completing missing forward arcs
     required to justify existing backward arcs.
@@ -220,7 +220,7 @@ def repair_matrix_upper(logits, threshold=0.5):
     """
     logits = logits.clone().detach()
     lower = torch.tril(logits, diagonal=-1)
-    paths = find_closing_paths(logits, threshold)
+    paths = find_closing_paths(logits, threshold, max_distance=max_distance)
 
     for path in paths:
         partitions = closing_path_partitions(path)
@@ -233,7 +233,7 @@ def repair_matrix_upper(logits, threshold=0.5):
     return lower + torch.triu(logits, diagonal=1)
 
 
-def repair_logits_matrix(logits: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
+def repair_logits_matrix(logits: torch.Tensor, threshold: float = 0.5, max_distance=10) -> torch.Tensor:
     """
     Wrapper function to repair a logits matrix by ensuring all forward paths are closed
     and all backward arcs are supported by valid forward chains.
@@ -250,15 +250,15 @@ def repair_logits_matrix(logits: torch.Tensor, threshold: float = 0.5) -> torch.
         torch.Tensor: A repaired logits matrix, ready to be used as a pseudo-label.
     """
     # First, repair backward arcs to ensure all open forward paths are closed
-    repaired_upper = repair_matrix_upper(logits, threshold=threshold)
+    repaired_upper = repair_matrix_upper(logits, threshold=threshold, max_distance=max_distance)
 
     # Then, repair forward arcs to justify all backward connections
-    fully_repaired = repair_matrix_lower(repaired_upper, threshold=threshold)
+    fully_repaired = repair_matrix_lower(repaired_upper, threshold=threshold, max_distance=max_distance)
 
     return fully_repaired
 
 
-def compute_repair_loss(logits: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
+def compute_repair_loss(logits: torch.Tensor, threshold: float = 0.5, max_distance=10) -> torch.Tensor:
     """
     Computes a BCE loss between the model's predicted logits and a repaired version
     of those logits, where invalid structures (e.g., open loops) have been corrected.
