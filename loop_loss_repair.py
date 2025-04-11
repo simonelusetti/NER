@@ -67,7 +67,7 @@ def training_loop_repair(
     return model
 
 
-def find_opening_paths(matrix, threshold=0.5):
+def find_opening_paths(matrix, threshold=0.5, max_distance=5):
     """
     Recursively find all maximal opening paths (as sequences of arcs) in the upper triangle.
 
@@ -81,22 +81,26 @@ def find_opening_paths(matrix, threshold=0.5):
     n = matrix.size(0)
     all_paths = []
 
-    def recurse(path):
-        _, j = path[-1]
+    def recurse(path, distance=0):
+        i,j = path[-1]
         branches = []
-        for k in range(j + 1, n):
-            if matrix[j, k] > threshold:
-                branches.append((j, k))
-        if not branches:
+        for k in range(i + 1, min(i + distance,n)):
+            if matrix[j, k] > threshold: 
+                for m in range(k, min(i + distance,n)):
+                    if matrix[j, m] > threshold: 
+                        branches.append((j, m))
+                        matrix[j, m] = 0
+                break
+        if branches == []: 
             all_paths.append(path)
             return
-        for next_arc in branches:
-            recurse(path + [next_arc])
+        for j,m in branches:
+            recurse(path + [(j,m)], distance=distance-m)
 
     for i in range(n):
-        for j in range(i + 1, n):
+        for j in range(i + 1, min(i + max_distance, n)):
             if matrix[i, j] > threshold:
-                recurse([(i, j)])
+                recurse([(i, j)], distance=max_distance)
 
     return all_paths
 
@@ -133,7 +137,7 @@ def opening_paths_partitions(path):
     return repairs
 
 
-def repair_matrix_lower(logits, threshold=0.5):
+def repair_matrix_lower(logits, threshold=0.5, max_distance=5):
     """
     Repairs the lower triangle of the matrix by inserting the least costly (closest-to-1)
     backward arcs that close existing forward paths.
@@ -147,7 +151,7 @@ def repair_matrix_lower(logits, threshold=0.5):
     """
     logits = logits.clone().detach()
     upper = torch.triu(logits, diagonal=1)
-    paths = find_opening_paths(logits, threshold)
+    paths = find_opening_paths(logits, threshold, max_distance=max_distance)
 
     for path in paths:
         partitions = opening_paths_partitions(path)
@@ -159,7 +163,7 @@ def repair_matrix_lower(logits, threshold=0.5):
     return torch.tril(logits, diagonal=-1) + upper
 
 
-def find_closing_paths(logits, threshold=0.5):
+def find_closing_paths(logits, threshold=0.5, max_distance=5):
     """
     Find all individual backward arcs (i.e., closing arcs) in the lower triangle.
 
@@ -171,7 +175,7 @@ def find_closing_paths(logits, threshold=0.5):
         List[Tuple[int, int]]: Closing arcs in form (j, i).
     """
     n = logits.size(0)
-    return [(j, i) for i in range(n) for j in range(i + 1, n) if logits[j, i] > threshold]
+    return [(j, i) for i in range(n) for j in range(i + 1, min(i + max_distance, n)) if logits[j, i] > threshold]
 
 
 def closing_path_partitions(path):
@@ -228,6 +232,7 @@ def repair_matrix_upper(logits, threshold=0.5):
 
     return lower + torch.triu(logits, diagonal=1)
 
+
 def repair_logits_matrix(logits: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
     """
     Wrapper function to repair a logits matrix by ensuring all forward paths are closed
@@ -251,6 +256,7 @@ def repair_logits_matrix(logits: torch.Tensor, threshold: float = 0.5) -> torch.
     fully_repaired = repair_matrix_lower(repaired_upper, threshold=threshold)
 
     return fully_repaired
+
 
 def compute_repair_loss(logits: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
     """
