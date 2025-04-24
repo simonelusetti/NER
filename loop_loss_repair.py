@@ -150,7 +150,7 @@ def repair_matrix_lower(logits, threshold=0.5, max_distance=10):
         torch.Tensor: New repaired matrix with fixed backward arcs.
     """
     logits = logits.clone().detach()
-    upper = torch.triu(logits, diagonal=1)
+    upper = torch.triu(logits)
     paths = find_opening_paths(logits, threshold, max_distance=max_distance)
 
     for path in paths:
@@ -219,7 +219,7 @@ def repair_matrix_upper(logits, threshold=0.5, max_distance=10):
         torch.Tensor: New repaired matrix with forward arcs completed.
     """
     logits = logits.clone().detach()
-    lower = torch.tril(logits, diagonal=-1)
+    lower = torch.tril(logits)
     paths = find_closing_paths(logits, threshold, max_distance=max_distance)
 
     for path in paths:
@@ -258,7 +258,7 @@ def repair_logits_matrix(logits: torch.Tensor, threshold: float = 0.5, max_dista
     return fully_repaired
 
 
-def compute_repair_loss(logits: torch.Tensor, threshold: float = 0.5, max_distance=10) -> torch.Tensor:
+def compute_repair_loss(logits: torch.Tensor, threshold: float = 0.5, max_distance=10, loss_fn = nn.BCEWithLogitsLoss()) -> torch.Tensor:
     """
     Computes a BCE loss between the model's predicted logits and a repaired version
     of those logits, where invalid structures (e.g., open loops) have been corrected.
@@ -279,7 +279,8 @@ def compute_repair_loss(logits: torch.Tensor, threshold: float = 0.5, max_distan
         # Step 2: Repair upper triangle (add missing forward arcs)
         repaired_logits = repair_matrix_upper(repaired_lower, threshold=threshold)
 
+        repaired_logits = (repaired_logits > 0.5).float()
+
     # BCE loss between original logits and repaired logits (used as pseudo-labels)
-    loss_fn = nn.BCEWithLogitsLoss()
     return loss_fn(logits, repaired_logits)
 
